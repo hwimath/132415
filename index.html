@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>극값을 갖도록 하는 계수의 조건</title>
+  <!-- MathJax 라이브러리 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+  <style>
+    body {
+      background-color: #ffffff;
+      color: #000000;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    /* 초기 숨김 설정 */
+    #startScreen, #quizContainer, #gameOverScreen {
+      display: none;
+      padding: 20px;
+      text-align: center;
+    }
+    /* visible 클래스가 적용된 경우 표시 (ID 선택자보다 높은 우선순위) */
+    #startScreen.visible,
+    #quizContainer.visible,
+    #gameOverScreen.visible {
+      display: block;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #ffffff;
+      border: 1px solid #000000;
+      color: #000000;
+    }
+    #energyContainer {
+      width: 80%;
+      height: 20px;
+      border: 1px solid #000000;
+      margin: 10px auto;
+      background-color: #ffffff;
+      position: relative;
+    }
+    #energyBar {
+      height: 100%;
+      background-color: #000000;
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+    #infoBar {
+      margin: 10px;
+    }
+    .optionBtn {
+      display: block;
+      width: 80%;
+      margin: 10px auto;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <!-- 시작 화면: 이름 입력 및 난이도 선택 -->
+  <div id="startScreen" class="visible">
+    <h1>극값을 갖도록 하는 계수의 조건</h1>
+    <p>이름을 입력하세요:</p>
+    <input type="text" id="playerName" placeholder="이름">
+    <p>난이도를 선택하세요:</p>
+    <select id="difficulty">
+      <option value="최상">최상 (시작 시 에너지바: 20초, 문제당 20점)</option>
+      <option value="상">상 (30초, 15점)</option>
+      <option value="중">중 (40초, 13점)</option>
+      <option value="하">하 (시간 제한 없음, 10점)</option>
+    </select>
+    <br>
+    <button id="startBtn">게임 시작</button>
+  </div>
+
+  <!-- 퀴즈 화면 -->
+  <div id="quizContainer">
+    <h1>극값을 갖도록 하는 계수의 조건</h1>
+    <p id="playerDisplay"></p>
+    <div id="infoBar">
+      <span id="scoreDisplay">점수: 0</span> &nbsp;&nbsp;
+      <span id="livesDisplay">남은 기회: 3</span> &nbsp;&nbsp;
+      <span id="totalTimeDisplay">전체 시간: 0초</span>
+    </div>
+    <!-- 에너지바 (난이도가 하가 아니면) -->
+    <div id="energyContainer" style="display:none;">
+      <div id="energyBar"></div>
+    </div>
+    <!-- 문제 영역 -->
+    <div id="questionArea"></div>
+    <!-- 보기 영역 -->
+    <div id="optionsArea"></div>
+    <!-- 피드백 영역 (정답/오답 표시) -->
+    <div id="feedbackArea"></div>
+  </div>
+
+  <!-- 게임 오버 화면 -->
+  <div id="gameOverScreen">
+    <h1>게임 오버</h1>
+    <p id="finalScoreDisplay"></p>
+    <p id="finalTimeDisplay"></p>
+    <button id="restartBtn">다시 시작</button>
+    <br><br>
+    <button id="submitScoreBtn">점수전송</button>
+    <pre id="response"></pre>
+  </div>
+
+  <script>
+    // 문제 데이터 (모든 문제를 무작위 순서로 출제 – 문제 번호는 표시하지 않음)
+    // 모든 수식은 \\(...\\) 안에 작성 (분수는 \\(\\dfrac{...}{...}\\) 형식)
+    const problems = [
+      {
+        question: "삼차함수 \\(f(x)=x^3 - 2a\\,x^2 + 12x + 2\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(-3 < a < 3\\)",
+          "\\(-3 \\le a \\le 3\\)",
+          "\\(a < -3 \\;또는\\; a > 3\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(a < -3 \\;또는\\; a > 3\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + a\\,x^2 + 3x + 4\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(-3 < a < 3\\)",
+          "\\(-3 \\le a \\le 3\\)",
+          "\\(|a| > 3\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(|a| > 3\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + a\\,x^2 + a\\,x + 1\\) (단, \\(a\\)는 자연수) 가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(a = 3\\)",
+          "\\(a \\ge 4\\)",
+          "모든 자연수 \\(a\\)",
+          "어떤 자연수 \\(a\\)로도 불가능"
+        ],
+        correct: "\\(a \\ge 4\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + a\\,x^2 - 3a\\,x + 5\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(-9 < a < 0\\)",
+          "\\(a < -9 \\;또는\\; a > 0\\)",
+          "\\(-9 \\le a \\le 9\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(a < -9 \\;또는\\; a > 0\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 - 3(a+1)x^2 - 3(a-5)x\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(-4 < a < 1\\)",
+          "\\(|a| > 4\\)",
+          "\\(a < -4 \\;또는\\; a > 1\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(a < -4 \\;또는\\; a > 1\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=\\dfrac{1}{3}x^3 + a\\,x^2 + 3a\\,x + 5\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(a > 3 \\;또는\\; a < 0\\)",
+          "\\(-3 < a < 0\\)",
+          "\\(-3 < a < 3\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(a > 3 \\;또는\\; a < 0\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=-x^3 + a\\,x^2 - a\\,x + 3\\)가 극값을 갖기 위한 조건을 구하시오.",
+        options: [
+          "\\(a < 0 \\;또는\\; a > 3\\)",
+          "\\(-3 < a < 0\\)",
+          "모든 실수 \\(a\\)",
+          "\\(0 < a < 3\\)"
+        ],
+        correct: "\\(a < 0 \\;또는\\; a > 3\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=\\dfrac{1}{3}x^3 + (a-1)x^2 + 4x + 1\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-1 < a < 3\\)",
+          "\\(-1 \\le a \\le 3\\)",
+          "\\(a \\le -1\\)",
+          "\\(a \\ge 3\\)"
+        ],
+        correct: "\\(-1 \\le a \\le 3\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=-3x^3 + a\\,x^2 + a\\,x\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-9 < a < 0\\)",
+          "\\(-9 \\le a \\le 0\\)",
+          "\\(a \\le -9\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(-9 \\le a \\le 0\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + a\\,x^2 - 2a\\,x + 3\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-6 < a < 0\\)",
+          "\\(-6 \\le a \\le 0\\)",
+          "\\(a \\ge 6\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(-6 \\le a \\le 0\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + a\\,x^2 - 3a\\,x + 2\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-9 < a < 0\\)",
+          "\\(-9 \\le a \\le 0\\)",
+          "\\(a \\ge 9\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(-9 \\le a \\le 0\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 - 2a\\,x^2 + 7a\\,x + 3\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(a \\ge 0\\)",
+          "\\(0 \\le a \\le \\dfrac{21}{4}\\)",
+          "\\(-\\dfrac{21}{4} \\le a \\le 0\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(0 \\le a \\le \\dfrac{21}{4}\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=x^3 + (a-3)x^2 - 2(a-3)x + (a-4)\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-3 < a < 3\\)",
+          "\\(-3 \\le a \\le 3\\)",
+          "\\(a \\ge 3\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(-3 \\le a \\le 3\\)"
+      },
+      {
+        question: "삼차함수 \\(f(x)=2x^3 - a\\,x^2 + a\\,x + 1\\)가 극값을 갖지 않도록 하는 조건을 구하시오.",
+        options: [
+          "\\(-6 < a < 0\\)",
+          "\\(0 \\le a \\le 6\\)",
+          "\\(a > 6\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(0 \\le a \\le 6\\)"
+      },
+      {
+        // 이 부분에서 괄호 안의 조건 삭제
+        question: "사차함수 \\(f(x)=x^4 - 4x^3 + \\dfrac{a}{2}x^2 - 5\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
+        options: [
+          "\\(a < 9\\)",
+          "\\(a < 9\\;이며\\; a \\neq 0\\)",
+          "\\(a \\ge 9\\)",
+          "모든 실수 \\(a\\)"
+        ],
+        correct: "\\(a < 9\\;이며\\; a \\neq 0\\)"
+      },
+      {
+        // 괄호 안의 조건 삭제
+        question: "사차함수 \\(f(x)=x^4 + 2x^3 + a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
+        options: [
+          "\\(a < \\dfrac{9}{8}\\)",
+          "\\(a < \\dfrac{9}{8}\\;이며\\; a \\neq 0\\)",
+          "\\(a = 0\\)",
+          "\\(a > \\dfrac{9}{8}\\)"
+        ],
+        correct: "\\(a < \\dfrac{9}{8}\\;이며\\; a \\neq 0\\)"
+      },
+      {
+        // 괄호 안의 조건 삭제
+        question: "사차함수 \\(f(x)=x^4 + 4x^3 - 4a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
+        options: [
+          "\\(a > -\\dfrac{9}{8}\\)",
+          "\\(a > -\\dfrac{9}{8}\\;이며\\; a \\neq 0\\)",
+          "\\(a = 0\\)",
+          "\\(-\\dfrac{9}{8} < a < 0\\)"
+        ],
+        correct: "\\(a > -\\dfrac{9}{8}\\;이며\\; a \\neq 0\\)"
+      },
+      {
+        // 괄호 안의 조건 삭제
+        question: "사차함수 \\(f(x)=2x^4 - 8x^3 + 4a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
+        options: [
+          "\\(a < \\dfrac{9}{4}\\)",
+          "\\(a < \\dfrac{9}{4}\\;이며\\; a \\neq 0\\)",
+          "\\(a \\ge \\dfrac{9}{4}\\)",
+          "\\(-\\dfrac{9}{4} \\le a \\le 0\\)"
+        ],
+        correct: "\\(a < \\dfrac{9}{4}\\;이며\\; a \\neq 0\\)"
+      }
+    ];
+
+    // 게임 관련 전역 변수
+    let currentProblem = null;
+    let currentOptions = [];
+    let score = 0;
+    let lives = 3;
+    let totalTime = 0; // 전체 게임 경과 시간 (초)
+    let questionTimer; // 문제당 타이머
+    let overallTimer;  // 전체 게임 타이머
+    let timeLimit = 0; // 난이도에 따른 문제당 시간 (초); 하 난이도인 경우 0으로 처리(무제한)
+    let pointsPerQuestion = 0;
+    let problemPool = [];
+    const gameName = "극값을 갖도록 하는 계수의 조건";
+
+    // DOM 요소
+    const startScreen = document.getElementById("startScreen");
+    const quizContainer = document.getElementById("quizContainer");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const playerDisplay = document.getElementById("playerDisplay");
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const livesDisplay = document.getElementById("livesDisplay");
+    const totalTimeDisplay = document.getElementById("totalTimeDisplay");
+    const questionArea = document.getElementById("questionArea");
+    const optionsArea = document.getElementById("optionsArea");
+    const feedbackArea = document.getElementById("feedbackArea");
+    const energyContainer = document.getElementById("energyContainer");
+    const energyBar = document.getElementById("energyBar");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const submitScoreBtn = document.getElementById("submitScoreBtn");
+    const finalScoreDisplay = document.getElementById("finalScoreDisplay");
+    const finalTimeDisplay = document.getElementById("finalTimeDisplay");
+
+    let playerName = "";
+    let currentEnergy = 100; // 백분율 (에너지바)
+
+    // 배열의 요소를 무작위로 섞는 함수
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    // 시작 버튼 클릭 시 게임 시작
+    startBtn.addEventListener("click", () => {
+      playerName = document.getElementById("playerName").value.trim();
+      if (!playerName) {
+        alert("이름을 입력해주세요.");
+        return;
+      }
+      const difficulty = document.getElementById("difficulty").value;
+      // 난이도에 따른 문제당 시간 및 점수 결정
+      if (difficulty === "최상") {
+        timeLimit = 20;
+        pointsPerQuestion = 20;
+      } else if (difficulty === "상") {
+        timeLimit = 30;
+        pointsPerQuestion = 15;
+      } else if (difficulty === "중") {
+        timeLimit = 40;
+        pointsPerQuestion = 13;
+      } else if (difficulty === "하") {
+        timeLimit = 0; // 시간제한 없음
+        pointsPerQuestion = 10;
+      }
+      startScreen.classList.remove("visible");
+      quizContainer.classList.add("visible");
+      playerDisplay.innerText = "플레이어: " + playerName;
+      // 에너지바는 시간제한이 있는 경우에만 보임
+      energyContainer.style.display = (timeLimit > 0) ? "block" : "none";
+      // 초기화
+      score = 0;
+      lives = 3;
+      totalTime = 0;
+      updateInfo();
+      // 문제 풀 문제집(배열 복사 후 섞기)
+      problemPool = problems.slice();
+      shuffleArray(problemPool);
+      // 타이머 시작 (전체 게임 경과 시간)
+      overallTimer = setInterval(() => {
+        totalTime++;
+        totalTimeDisplay.innerText = "전체 시간: " + totalTime + "초";
+      }, 1000);
+      nextQuestion();
+    });
+
+    // 다음 문제로 이동
+    function nextQuestion() {
+      feedbackArea.innerText = "";
+      // 에너지바 초기화 (시간제한이 있는 경우)
+      if (timeLimit > 0) {
+        currentEnergy = 100;
+        energyBar.style.width = "100%";
+      }
+      // 문제집이 비었으면 문제집을 다시 복사
+      if (problemPool.length === 0) {
+        problemPool = problems.slice();
+      }
+      // 문제 하나 선택
+      currentProblem = problemPool.pop();
+      // 문제와 보기를 무작위로 섞어서 화면에 표시
+      questionArea.innerHTML = "<p>" + currentProblem.question + "</p>";
+      currentOptions = currentProblem.options.slice();
+      shuffleArray(currentOptions);
+      optionsArea.innerHTML = "";
+      currentOptions.forEach(optionText => {
+        const btn = document.createElement("button");
+        btn.className = "optionBtn";
+        btn.innerHTML = optionText;
+        btn.addEventListener("click", () => selectAnswer(optionText));
+        optionsArea.appendChild(btn);
+      });
+      // MathJax 렌더링
+      MathJax.typeset();
+      // 만약 시간제한이 있다면 문제당 타이머 시작
+      if (timeLimit > 0) {
+        startQuestionTimer();
+      }
+    }
+
+    // 문제당 타이머 시작 (에너지바 업데이트)
+    function startQuestionTimer() {
+      let remainingTime = timeLimit; // 초 단위
+      if (questionTimer) clearInterval(questionTimer);
+      questionTimer = setInterval(() => {
+        remainingTime -= 0.1;
+        currentEnergy = (remainingTime / timeLimit) * 100;
+        energyBar.style.width = currentEnergy + "%";
+        if (remainingTime <= 0) {
+          clearInterval(questionTimer);
+          // 시간이 다 되면 기회 감소 및 정답 표시 후 새 문제
+          feedbackArea.innerHTML = "시간 초과! 정답: " + currentProblem.correct;
+          MathJax.typeset();
+          loseLife();
+          setTimeout(nextQuestion, 1500);
+        }
+      }, 100);
+    }
+
+    // 사용자가 답을 선택했을 때
+    function selectAnswer(selectedOption) {
+      // 타이머 중지
+      if (questionTimer) clearInterval(questionTimer);
+      // 정답 체크
+      if (selectedOption.trim() === currentProblem.correct.trim()) {
+        score += pointsPerQuestion;
+        feedbackArea.innerHTML = "정답!";
+      } else {
+        feedbackArea.innerHTML = "오답! 정답: " + currentProblem.correct;
+        loseLife();
+      }
+      updateInfo();
+      MathJax.typeset();
+      // 1.5초 후 다음 문제로
+      setTimeout(nextQuestion, 1500);
+    }
+
+    // 남은 기회 감소 및 게임 종료 체크
+    function loseLife() {
+      lives--;
+      if (lives <= 0) {
+        endGame();
+      }
+      updateInfo();
+    }
+
+    // 정보 갱신
+    function updateInfo() {
+      scoreDisplay.innerText = "점수: " + score;
+      livesDisplay.innerText = "남은 기회: " + lives;
+      totalTimeDisplay.innerText = "전체 시간: " + totalTime + "초";
+    }
+
+    // 게임 종료 처리
+    function endGame() {
+      clearInterval(overallTimer);
+      if (questionTimer) clearInterval(questionTimer);
+      quizContainer.classList.remove("visible");
+      gameOverScreen.classList.add("visible");
+      finalScoreDisplay.innerText = "최종 점수: " + score;
+      finalTimeDisplay.innerText = "총 경과 시간: " + totalTime + "초";
+    }
+
+    // 재시작 버튼
+    restartBtn.addEventListener("click", () => {
+      location.reload();
+    });
+
+    // 점수 전송 함수
+    function saveData(game, name, score, elapsedTime) {
+      const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+  
+      const requestData = {
+          game,
+          name,
+          score: parseInt(score, 10),
+          elapsedTime: parseInt(elapsedTime, 10)
+      };
+  
+      try {
+          const response = fetch(FUNCTION_URL, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestData)
+          });
+  
+          response.then(res => res.json())
+                  .then(responseData => {
+                      if (response.ok) {
+                          document.getElementById('response').innerText = 
+                              `성공: ${JSON.stringify(responseData, null, 2)}`;
+                      } else {
+                          document.getElementById('response').innerText = 
+                              `오류: ${JSON.stringify(responseData, null, 2)}`;
+                      }
+                  })
+                  .catch(error => {
+                      document.getElementById('response').innerText = 
+                          `네트워크 오류: ${error.message}`;
+                  });
+      } catch (error) {
+          console.error('요청 실패:', error);
+          document.getElementById('response').innerText = 
+              `네트워크 오류: ${error.message}`;
+      }
+    }
+  
+    submitScoreBtn.addEventListener("click", () => {
+      saveData(gameName, playerName, score, totalTime);
+    });
+  </script>
+</body>
+</html>
