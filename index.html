@@ -95,6 +95,8 @@
     <div id="optionsArea"></div>
     <!-- 피드백 영역 (정답/오답 표시) -->
     <div id="feedbackArea"></div>
+    <!-- 다음 문제 버튼 (답이 확인된 후 활성화) -->
+    <button id="nextBtn" style="display:none;">다음문제</button>
   </div>
 
   <!-- 게임 오버 화면 -->
@@ -109,7 +111,8 @@
   </div>
 
   <script>
-    // 문제 데이터 (모든 문제를 무작위 순서로 출제 – 문제 번호는 표시하지 않음)
+    // 문제 데이터  
+    // 중고등학생이 풀기 쉬운 삼차함수 문제만 남기고, 사차함수 문제는 삭제함.
     // 모든 수식은 \\(...\\) 안에 작성 (분수는 \\(\\dfrac{...}{...}\\) 형식)
     const problems = [
       {
@@ -251,50 +254,6 @@
           "모든 실수 \\(a\\)"
         ],
         correct: "\\(0 \\le a \\le 6\\)"
-      },
-      {
-        // 이 부분에서 괄호 안의 조건 삭제
-        question: "사차함수 \\(f(x)=x^4 - 4x^3 + \\dfrac{a}{2}x^2 - 5\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
-        options: [
-          "\\(a < 9\\)",
-          "\\(a < 9\\;이며\\; a \\neq 0\\)",
-          "\\(a \\ge 9\\)",
-          "모든 실수 \\(a\\)"
-        ],
-        correct: "\\(a < 9\\;이며\\; a \\neq 0\\)"
-      },
-      {
-        // 괄호 안의 조건 삭제
-        question: "사차함수 \\(f(x)=x^4 + 2x^3 + a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
-        options: [
-          "\\(a < \\dfrac{9}{8}\\)",
-          "\\(a < \\dfrac{9}{8}\\;이며\\; a \\neq 0\\)",
-          "\\(a = 0\\)",
-          "\\(a > \\dfrac{9}{8}\\)"
-        ],
-        correct: "\\(a < \\dfrac{9}{8}\\;이며\\; a \\neq 0\\)"
-      },
-      {
-        // 괄호 안의 조건 삭제
-        question: "사차함수 \\(f(x)=x^4 + 4x^3 - 4a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
-        options: [
-          "\\(a > -\\dfrac{9}{8}\\)",
-          "\\(a > -\\dfrac{9}{8}\\;이며\\; a \\neq 0\\)",
-          "\\(a = 0\\)",
-          "\\(-\\dfrac{9}{8} < a < 0\\)"
-        ],
-        correct: "\\(a > -\\dfrac{9}{8}\\;이며\\; a \\neq 0\\)"
-      },
-      {
-        // 괄호 안의 조건 삭제
-        question: "사차함수 \\(f(x)=2x^4 - 8x^3 + 4a\\,x^2\\)가 극댓값을 갖도록 하는 조건을 구하시오.",
-        options: [
-          "\\(a < \\dfrac{9}{4}\\)",
-          "\\(a < \\dfrac{9}{4}\\;이며\\; a \\neq 0\\)",
-          "\\(a \\ge \\dfrac{9}{4}\\)",
-          "\\(-\\dfrac{9}{4} \\le a \\le 0\\)"
-        ],
-        correct: "\\(a < \\dfrac{9}{4}\\;이며\\; a \\neq 0\\)"
       }
     ];
 
@@ -306,7 +265,7 @@
     let totalTime = 0; // 전체 게임 경과 시간 (초)
     let questionTimer; // 문제당 타이머
     let overallTimer;  // 전체 게임 타이머
-    let timeLimit = 0; // 난이도에 따른 문제당 시간 (초); 하 난이도인 경우 0으로 처리(무제한)
+    let timeLimit = 0; // 난이도에 따른 문제당 시간 (초; '하' 난이도는 무제한)
     let pointsPerQuestion = 0;
     let problemPool = [];
     const gameName = "극값을 갖도록 하는 계수의 조건";
@@ -329,9 +288,10 @@
     const submitScoreBtn = document.getElementById("submitScoreBtn");
     const finalScoreDisplay = document.getElementById("finalScoreDisplay");
     const finalTimeDisplay = document.getElementById("finalTimeDisplay");
+    const nextBtn = document.getElementById("nextBtn");
 
     let playerName = "";
-    let currentEnergy = 100; // 백분율 (에너지바)
+    let currentEnergy = 100; // 에너지바 (백분율)
 
     // 배열의 요소를 무작위로 섞는 함수
     function shuffleArray(array) {
@@ -376,7 +336,7 @@
       // 문제 풀 문제집(배열 복사 후 섞기)
       problemPool = problems.slice();
       shuffleArray(problemPool);
-      // 타이머 시작 (전체 게임 경과 시간)
+      // 전체 게임 경과 시간 타이머 시작
       overallTimer = setInterval(() => {
         totalTime++;
         totalTimeDisplay.innerText = "전체 시간: " + totalTime + "초";
@@ -387,18 +347,19 @@
     // 다음 문제로 이동
     function nextQuestion() {
       feedbackArea.innerText = "";
+      nextBtn.style.display = "none";
       // 에너지바 초기화 (시간제한이 있는 경우)
       if (timeLimit > 0) {
         currentEnergy = 100;
         energyBar.style.width = "100%";
       }
-      // 문제집이 비었으면 문제집을 다시 복사
+      // 문제집이 비었으면 다시 초기화
       if (problemPool.length === 0) {
         problemPool = problems.slice();
+        shuffleArray(problemPool);
       }
-      // 문제 하나 선택
+      // 문제 선택 및 보기를 무작위로 섞어 표시
       currentProblem = problemPool.pop();
-      // 문제와 보기를 무작위로 섞어서 화면에 표시
       questionArea.innerHTML = "<p>" + currentProblem.question + "</p>";
       currentOptions = currentProblem.options.slice();
       shuffleArray(currentOptions);
@@ -407,12 +368,12 @@
         const btn = document.createElement("button");
         btn.className = "optionBtn";
         btn.innerHTML = optionText;
-        btn.addEventListener("click", () => selectAnswer(optionText));
+        btn.addEventListener("click", () => selectAnswer(optionText, btn));
         optionsArea.appendChild(btn);
       });
       // MathJax 렌더링
       MathJax.typeset();
-      // 만약 시간제한이 있다면 문제당 타이머 시작
+      // 시간제한이 있다면 문제당 타이머 시작
       if (timeLimit > 0) {
         startQuestionTimer();
       }
@@ -420,7 +381,7 @@
 
     // 문제당 타이머 시작 (에너지바 업데이트)
     function startQuestionTimer() {
-      let remainingTime = timeLimit; // 초 단위
+      let remainingTime = timeLimit; // 단위: 초
       if (questionTimer) clearInterval(questionTimer);
       questionTimer = setInterval(() => {
         remainingTime -= 0.1;
@@ -428,19 +389,20 @@
         energyBar.style.width = currentEnergy + "%";
         if (remainingTime <= 0) {
           clearInterval(questionTimer);
-          // 시간이 다 되면 기회 감소 및 정답 표시 후 새 문제
           feedbackArea.innerHTML = "시간 초과! 정답: " + currentProblem.correct;
           MathJax.typeset();
           loseLife();
-          setTimeout(nextQuestion, 1500);
+          nextBtn.style.display = "block";
         }
       }, 100);
     }
 
     // 사용자가 답을 선택했을 때
-    function selectAnswer(selectedOption) {
+    function selectAnswer(selectedOption, buttonElement) {
       // 타이머 중지
       if (questionTimer) clearInterval(questionTimer);
+      // 중복 선택 방지를 위해 모든 보기 버튼 비활성화
+      document.querySelectorAll(".optionBtn").forEach(btn => btn.disabled = true);
       // 정답 체크
       if (selectedOption.trim() === currentProblem.correct.trim()) {
         score += pointsPerQuestion;
@@ -451,8 +413,10 @@
       }
       updateInfo();
       MathJax.typeset();
-      // 1.5초 후 다음 문제로
-      setTimeout(nextQuestion, 1500);
+      // 피드백이 확인된 후 약 1.5초 뒤에 '다음문제' 버튼 활성화
+      setTimeout(() => {
+        nextBtn.style.display = "block";
+      }, 1500);
     }
 
     // 남은 기회 감소 및 게임 종료 체크
@@ -484,6 +448,12 @@
     // 재시작 버튼
     restartBtn.addEventListener("click", () => {
       location.reload();
+    });
+
+    // '다음문제' 버튼 클릭 시 다음 문제로 이동
+    nextBtn.addEventListener("click", () => {
+      nextBtn.style.display = "none";
+      nextQuestion();
     });
 
     // 점수 전송 함수
